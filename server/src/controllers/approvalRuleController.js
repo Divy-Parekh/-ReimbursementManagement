@@ -1,7 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../utils/prisma');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
-
-const prisma = new PrismaClient();
 
 /**
  * Get all approval rules for the company

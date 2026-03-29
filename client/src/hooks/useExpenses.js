@@ -16,7 +16,6 @@ export function useExpenses(autoFetch = true) {
       return response;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch expenses');
-      throw err;
     } finally {
       setLoading(false);
     }

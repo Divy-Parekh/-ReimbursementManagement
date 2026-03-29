@@ -13,8 +13,8 @@ export default function Table({ columns, data, onRowClick, emptyMessage = 'No da
   }
 
   return (
-    <div className="glass rounded-xl overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="glass rounded-xl w-full max-w-full overflow-visible">
+      <div className="overflow-visible w-full min-w-full">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border">

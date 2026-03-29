@@ -33,7 +33,8 @@ const changePasswordSchema = Joi.object({
 // Middleware factory to validate Joi schemas
 const validate = (schema) => {
   return (req, res, next) => {
-    const { error } = schema.validate(req.body, { abortEarly: false });
+    // stripUnknown ensures any fields not defined in the schema (e.g. browser autofill injecting 'email') are safely discarded instead of failing validation.
+    const { error, value } = schema.validate(req.body, { abortEarly: false, stripUnknown: true });
     
     if (error) {
       // Create a custom error format our central error handler understands
@@ -43,6 +44,7 @@ const validate = (schema) => {
       return next(joiErr);
     }
     
+    req.body = value; // Replace req.body with the stripped version
     next();
   };
 };

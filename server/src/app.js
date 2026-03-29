@@ -11,6 +11,7 @@ const approvalRoutes = require('./routes/approvalRoutes');
 const approvalRuleRoutes = require('./routes/approvalRuleRoutes');
 const currencyRoutes = require('./routes/currencyRoutes');
 const countryRoutes = require('./routes/countryRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 dotenv.config();
 
@@ -32,8 +33,7 @@ app.use('/api/approvals', approvalRoutes);
 app.use('/api/approval-rules', approvalRuleRoutes);
 app.use('/api/currency', currencyRoutes);
 app.use('/api/countries', countryRoutes);
-// app.use('/api/currency', currencyRoutes);
-// app.use('/api/countries', countryRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Base route
 app.get('/', (req, res) => {

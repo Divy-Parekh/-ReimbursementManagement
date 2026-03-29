@@ -178,6 +178,7 @@ export default function UserManagementPage() {
             options={[
               { value: 'MANAGER', label: 'Manager' },
               { value: 'EMPLOYEE', label: 'Employee' },
+              { value: 'CFO', label: 'CFO' },
             ]}
           />
           <Select

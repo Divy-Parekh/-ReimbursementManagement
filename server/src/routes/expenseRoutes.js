@@ -21,6 +21,11 @@ const { upload } = require('../middleware/uploadMiddleware');
 
 router.use(authenticate);
 
+// ─── STATIC routes MUST come before parameterized /:id ────────
+// Admin / elevated routes
+router.get('/all', authorize('ADMIN', 'MANAGER', 'CFO'), getAllCompanyExpenses);
+router.get('/summary/kpis', authorize('ADMIN', 'MANAGER', 'CFO'), getExpenseSummary);
+
 // Employee routes
 router.get('/my', getMyExpenses);
 router.post('/', validate(createExpenseSchema), createExpense);
@@ -29,11 +34,7 @@ router.delete('/:id', deleteExpense);
 router.post('/:id/submit', submitExpense);
 router.post('/:id/attachments', upload, uploadAttachment);
 
-// General route (with internal RBAC logic)
+// General parameterized route (LAST — matches anything like /expenses/abc123)
 router.get('/:id', getExpenseById);
-
-// Admin / elevated routes
-router.get('/all', authorize('ADMIN', 'MANAGER'), getAllCompanyExpenses);
-router.get('/summary/kpis', authorize('ADMIN', 'MANAGER'), getExpenseSummary);
 
 module.exports = router;

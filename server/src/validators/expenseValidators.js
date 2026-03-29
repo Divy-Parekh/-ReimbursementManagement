@@ -1,8 +1,10 @@
 const Joi = require('joi');
 
+const VALID_CATEGORIES = ['Food', 'Travel', 'Office Supplies', 'Accommodation', 'Transportation', 'Entertainment', 'Miscellaneous'];
+
 const createExpenseSchema = Joi.object({
   description: Joi.string().min(3).max(255).required(),
-  category: Joi.string().valid('Food', 'Travel', 'Office', 'Accommodation', 'Miscellaneous').required(),
+  category: Joi.string().valid(...VALID_CATEGORIES).required(),
   amount: Joi.number().positive().required(),
   currency: Joi.string().length(3).required(),
   expenseDate: Joi.date().iso().required(),
@@ -12,7 +14,7 @@ const createExpenseSchema = Joi.object({
 
 const updateExpenseSchema = Joi.object({
   description: Joi.string().min(3).max(255).optional(),
-  category: Joi.string().valid('Food', 'Travel', 'Office', 'Accommodation', 'Miscellaneous').optional(),
+  category: Joi.string().valid(...VALID_CATEGORIES).optional(),
   amount: Joi.number().positive().optional(),
   currency: Joi.string().length(3).optional(),
   expenseDate: Joi.date().iso().optional(),

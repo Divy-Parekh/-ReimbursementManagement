@@ -1,9 +1,7 @@
 const app = require('./app');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('./utils/prisma');
 const fs = require('fs');
 const path = require('path');
-
-const prisma = new PrismaClient();
 const PORT = process.env.PORT || 5000;
 
 // Ensure uploads directory exists

@@ -1,11 +1,9 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../utils/prisma');
 const fs = require('fs');
 const path = require('path');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 const { convertCurrency } = require('../services/currencyService');
 const { triggerApprovalWorkflow } = require('../services/approvalEngine');
-
-const prisma = new PrismaClient();
 
 /**
  * Get all expenses for the authenticated user

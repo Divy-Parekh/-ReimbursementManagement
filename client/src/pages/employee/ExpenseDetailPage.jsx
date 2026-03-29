@@ -27,7 +27,9 @@ export default function ExpenseDetailPage() {
   const [errors, setErrors] = useState({});
 
   const isDraft = expense?.status === EXPENSE_STATUS.DRAFT;
-  const isReadOnly = !isDraft;
+  const isRejected = expense?.status === EXPENSE_STATUS.REJECTED;
+  const isEditable = isDraft || isRejected;
+  const isReadOnly = !isEditable;
 
   useEffect(() => {
     fetchExpense();
@@ -155,11 +157,11 @@ export default function ExpenseDetailPage() {
           </div>
         </div>
 
-        {/* Actions — only for draft */}
-        {isDraft && (
+        {/* Actions — for draft or rejected */}
+        {isEditable && (
           <div className="flex items-center justify-end gap-3 mt-6 pt-6 border-t border-border">
             <Button variant="secondary" onClick={handleSave} loading={saving}>Save</Button>
-            <Button onClick={handleSubmit} loading={submitting}>Submit</Button>
+            <Button onClick={handleSubmit} loading={submitting}>{isRejected ? 'Resubmit' : 'Submit'}</Button>
           </div>
         )}
       </div>

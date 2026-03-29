@@ -29,6 +29,8 @@ import ExpenseDetailPage from './pages/employee/ExpenseDetailPage';
 
 // Other
 import NotFoundPage from './pages/NotFoundPage';
+import ProfilePage from './pages/auth/ProfilePage';
+import NotificationsPage from './pages/dashboard/NotificationsPage';
 
 // Protected Route wrapper
 function ProtectedRoute({ allowedRoles }) {
@@ -36,9 +38,10 @@ function ProtectedRoute({ allowedRoles }) {
 
   if (loading) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
     // Redirect to their own dashboard
-    const roleRoutes = { ADMIN: '/admin', MANAGER: '/manager', EMPLOYEE: '/employee' };
+    const roleRoutes = { ADMIN: '/admin', MANAGER: '/manager', EMPLOYEE: '/employee', CFO: '/manager' };
     return <Navigate to={roleRoutes[user?.role] || '/login'} replace />;
   }
   return <Outlet />;
@@ -50,7 +53,7 @@ function PublicRoute() {
 
   if (loading) return <PageLoader />;
   if (isAuthenticated) {
-    const roleRoutes = { ADMIN: '/admin', MANAGER: '/manager', EMPLOYEE: '/employee' };
+    const roleRoutes = { ADMIN: '/admin', MANAGER: '/manager', EMPLOYEE: '/employee', CFO: '/manager' };
     return <Navigate to={roleRoutes[user?.role] || '/'} replace />;
   }
   return <Outlet />;
@@ -62,7 +65,7 @@ function RootRedirect() {
 
   if (loading) return <PageLoader />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  const roleRoutes = { ADMIN: '/admin', MANAGER: '/manager', EMPLOYEE: '/employee' };
+  const roleRoutes = { ADMIN: '/admin', MANAGER: '/manager', EMPLOYEE: '/employee', CFO: '/manager' };
   return <Navigate to={roleRoutes[user?.role] || '/login'} replace />;
 }
 
@@ -81,6 +84,14 @@ export default function App() {
         </Route>
       </Route>
 
+      {/* Universal Protected Routes (Any Role) */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<DashboardLayout />}>
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
+        </Route>
+      </Route>
+
       {/* Admin Routes */}
       <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
         <Route element={<DashboardLayout />}>
@@ -93,8 +104,8 @@ export default function App() {
         </Route>
       </Route>
 
-      {/* Manager Routes */}
-      <Route element={<ProtectedRoute allowedRoles={['MANAGER']} />}>
+      {/* Manager / CFO Routes */}
+      <Route element={<ProtectedRoute allowedRoles={['MANAGER', 'CFO']} />}>
         <Route element={<DashboardLayout />}>
           <Route path="/manager" element={<ManagerDashboard />} />
           <Route path="/manager/approvals/:id" element={<ApprovalDetailPage />} />

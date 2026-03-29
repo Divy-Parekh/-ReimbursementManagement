@@ -54,6 +54,7 @@ export default function ApprovalRuleFormPage() {
             userName: a.user?.name || '',
             sequenceOrder: a.sequenceOrder,
             isRequired: a.isRequired,
+            isOverride: a.isOverride || false,
           }))
         );
       }
@@ -64,7 +65,23 @@ export default function ApprovalRuleFormPage() {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    
+    if (name === 'userId') {
+      const selectedUser = users.find(u => u.id === value);
+      if (selectedUser?.managerId) {
+        setForm(prev => ({ 
+          ...prev, 
+          userId: value, 
+          managerId: selectedUser.managerId, 
+          isManagerApprover: true 
+        }));
+      } else {
+        setForm(prev => ({ ...prev, userId: value, isManagerApprover: false, managerId: '' }));
+      }
+    } else {
+      setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    }
+    
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
   };
 

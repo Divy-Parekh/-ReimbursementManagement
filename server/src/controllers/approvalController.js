@@ -1,8 +1,6 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../utils/prisma');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 const { processApprovalDecision } = require('../services/approvalEngine');
-
-const prisma = new PrismaClient();
 
 /**
  * Get all pending approvals for the authenticated user (Manager/Approver)
@@ -11,14 +9,23 @@ const prisma = new PrismaClient();
 const getPendingApprovals = async (req, res, next) => {
   try {
     const approverId = req.user.id;
+    const { role, companyId } = req.user;
+
+    if (role === 'CFO') {
+      const globalPending = await prisma.expense.findMany({
+        where: { companyId },
+        include: { 
+          user: { select: { id: true, name: true, email: true } },
+          approvalLogs: true 
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      return sendSuccess(res, 200, 'Company approvals globally fetched', globalPending, globalPending.length);
+    }
 
     const pendingLogs = await prisma.approvalLog.findMany({
       where: {
-        approverId,
-        action: 'PENDING',
-        expense: {
-          status: 'WAITING_APPROVAL'
-        }
+        approverId
       },
       include: {
         expense: {
@@ -34,6 +41,7 @@ const getPendingApprovals = async (req, res, next) => {
 
     const expenses = pendingLogs.map(log => ({
       ...log.expense,
+      action: log.action,
       approvalLogId: log.id,
       sequenceOrder: log.sequenceOrder
     }));
@@ -43,6 +51,8 @@ const getPendingApprovals = async (req, res, next) => {
     // But to prevent UI showing future sequence items, filter here:
     
     const validExpenses = await Promise.all(expenses.map(async (exp) => {
+       if (exp.action !== 'PENDING') return exp;
+
        // Check if there are any PENDING logs for this expense with a lower sequence order
        const priorPending = await prisma.approvalLog.findFirst({
          where: {
@@ -72,13 +82,16 @@ const approveExpense = async (req, res, next) => {
     const { expenseId } = req.params;
     const { comments } = req.body;
     const approverId = req.user.id;
+    const role = req.user.role;
 
-    const log = await prisma.approvalLog.findUnique({
-      where: { expenseId_approverId: { expenseId, approverId } }
-    });
+    if (role !== 'CFO') {
+      const log = await prisma.approvalLog.findUnique({
+        where: { expenseId_approverId: { expenseId, approverId } }
+      });
 
-    if (!log || log.action !== 'PENDING') {
-      return sendError(res, 400, 'Invalid approval request or already processed.');
+      if (!log || log.action !== 'PENDING') {
+        return sendError(res, 400, 'Invalid approval request or already processed.');
+      }
     }
 
     const result = await processApprovalDecision(expenseId, approverId, 'APPROVED', comments);
@@ -98,17 +111,20 @@ const rejectExpense = async (req, res, next) => {
     const { expenseId } = req.params;
     const { comments } = req.body;
     const approverId = req.user.id;
+    const role = req.user.role;
 
     if (!comments) {
       return sendError(res, 400, 'Comments are required for rejection.');
     }
 
-    const log = await prisma.approvalLog.findUnique({
-      where: { expenseId_approverId: { expenseId, approverId } }
-    });
+    if (role !== 'CFO') {
+      const log = await prisma.approvalLog.findUnique({
+        where: { expenseId_approverId: { expenseId, approverId } }
+      });
 
-    if (!log || log.action !== 'PENDING') {
-      return sendError(res, 400, 'Invalid rejection request or already processed.');
+      if (!log || log.action !== 'PENDING') {
+        return sendError(res, 400, 'Invalid rejection request or already processed.');
+      }
     }
 
     const result = await processApprovalDecision(expenseId, approverId, 'REJECTED', comments);

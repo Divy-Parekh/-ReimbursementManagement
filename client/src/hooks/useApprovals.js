@@ -15,7 +15,6 @@ export function useApprovals() {
       return response;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to fetch approvals');
-      throw err;
     } finally {
       setLoading(false);
     }

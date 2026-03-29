@@ -1,10 +1,8 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../utils/prisma');
 const bcrypt = require('bcryptjs');
 const { generateRandomPassword } = require('../utils/passwordGenerator');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 const { sendPasswordEmail } = require('../services/emailService');
-
-const prisma = new PrismaClient();
 
 /**
  * Get all users in the admin's company
@@ -67,6 +65,16 @@ const createUser = async (req, res, next) => {
       return sendError(res, 409, 'Email is already registered.');
     }
 
+    // Enforce single CFO policy
+    if (role === 'CFO') {
+      const existingCFO = await prisma.user.findFirst({
+        where: { companyId, role: 'CFO' }
+      });
+      if (existingCFO) {
+        return sendError(res, 400, `A CFO already exists: ${existingCFO.name}. Only one CFO is allowed per company. Demote them first.`);
+      }
+    }
+
     // Generate random password and hash it
     const randomPassword = generateRandomPassword();
     const salt = await bcrypt.genSalt(10);
@@ -100,7 +108,17 @@ const createUser = async (req, res, next) => {
       }
     });
 
-    return sendSuccess(res, 201, 'User created successfully', newUser);
+    const company = await prisma.company.findUnique({ where: { id: companyId } });
+    
+    // Auto-send credentials to the newly created user
+    try {
+      await sendPasswordEmail(email, name, randomPassword, company?.name || 'Your Company');
+    } catch (emailError) {
+      console.error('Failed to send onboarding email:', emailError);
+      // We don't fail the request if the email fails, but we might log it.
+    }
+
+    return sendSuccess(res, 201, 'User created and credentials emailed successfully', newUser);
   } catch (error) {
     next(error);
   }
@@ -124,6 +142,16 @@ const updateUser = async (req, res, next) => {
 
     if (userToUpdate.role === 'ADMIN' && role !== 'ADMIN') {
       return sendError(res, 400, 'Cannot change an ADMIN role.');
+    }
+
+    // Enforce single CFO policy
+    if (role === 'CFO' && userToUpdate.role !== 'CFO') {
+      const existingCFO = await prisma.user.findFirst({
+        where: { companyId, role: 'CFO' }
+      });
+      if (existingCFO) {
+        return sendError(res, 400, `A CFO already exists: ${existingCFO.name}. Only one CFO is allowed per company. Demote them first.`);
+      }
     }
 
     // If managerId provided, ensure validity

@@ -54,6 +54,24 @@
   --radius-2xl: 1.25rem;
 }
 
+[data-theme="light"] {
+  /* Surfaces — light mode */
+  --color-surface-900: oklch(0.98 0.01 270);
+  --color-surface-800: oklch(0.95 0.01 270);
+  --color-surface-700: oklch(0.92 0.01 270);
+  --color-surface-600: oklch(0.88 0.02 270);
+  --color-surface-500: oklch(0.80 0.02 270);
+
+  /* Text — light mode (inverted) */
+  --color-text-primary: oklch(0.20 0.02 270);
+  --color-text-secondary: oklch(0.35 0.02 270);
+  --color-text-muted: oklch(0.55 0.01 270);
+
+  /* Borders — light mode */
+  --color-border: oklch(0.88 0.02 270);
+  --color-border-light: oklch(0.92 0.02 270);
+}
+
 /* Base resets */
 *,
 *::before,
@@ -107,11 +125,21 @@ body {
   border: 1px solid oklch(0.35 0.02 270 / 0.3);
 }
 
+[data-theme="light"] .glass {
+  background: oklch(0.98 0.01 270 / 0.85);
+  border: 1px solid oklch(0.88 0.02 270 / 0.6);
+}
+
 .glass-light {
   background: oklch(0.22 0.02 270 / 0.5);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid oklch(0.35 0.02 270 / 0.2);
+}
+
+[data-theme="light"] .glass-light {
+  background: oklch(0.95 0.01 270 / 0.7);
+  border: 1px solid oklch(0.88 0.02 270 / 0.4);
 }
 
 /* Gradient text utility */

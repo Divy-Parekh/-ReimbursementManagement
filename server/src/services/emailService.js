@@ -1,17 +1,29 @@
-/**
- * Email Service (Mock/Development Implementation using Console Logs)
- * In production, this would use nodemailer to actually send emails.
- */
+const nodemailer = require('nodemailer');
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT) || 587,
+  secure: false, // true for 465, false for other ports
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+});
 
 const sendEmail = async (to, subject, htmlContent) => {
-  console.log('\n================ EMAIL SENT ================');
-  console.log(`To:      ${to}`);
-  console.log(`Subject: ${subject}`);
-  console.log('--- Body ---');
-  // Strip simple HTML tags for console reading (rudimentary)
-  console.log(htmlContent.replace(/<[^>]*>?/gm, ''));
-  console.log('============================================\n');
-  return true;
+  try {
+    const info = await transporter.sendMail({
+      from: `"${process.env.SMTP_FROM_NAME || 'Reimbursement System'}" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      to,
+      subject,
+      html: htmlContent,
+    });
+    console.log(`✅ Email sent: ${info.messageId}`);
+    return true;
+  } catch (error) {
+    console.error(`❌ Error sending email to ${to}:`, error.message);
+    return false;
+  }
 };
 
 const sendPasswordEmail = async (to, name, password, companyName) => {

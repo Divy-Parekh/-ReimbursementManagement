@@ -46,7 +46,7 @@ export default function ReceiptUploader({ onExtract, disabled = false }) {
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,application/pdf"
         onChange={handleFileChange}
         className="hidden"
         id="receipt-upload"

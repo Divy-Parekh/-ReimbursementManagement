@@ -15,6 +15,7 @@ enum Role {
   ADMIN
   MANAGER
   EMPLOYEE
+  CFO
 }
 
 enum ExpenseStatus {
@@ -68,6 +69,7 @@ model User {
   approvalLogs    ApprovalLog[]    @relation("ApproverLogs")
   approvalRules   ApprovalRule[]   @relation("RuleForUser")
   ruleApprovers   ApprovalRuleApprover[]
+  notifications   Notification[]
 
   @@index([companyId])
   @@index([managerId])
@@ -170,3 +172,18 @@ model ApprovalLog {
   @@index([approverId])
   @@unique([expenseId, approverId])
 }
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+}
+

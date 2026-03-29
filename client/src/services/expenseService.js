@@ -46,7 +46,7 @@ const expenseService = {
   },
 
   async getSummary() {
-    const response = await api.get('/expenses/summary');
+    const response = await api.get('/expenses/summary/kpis');
     return response.data;
   },
 };

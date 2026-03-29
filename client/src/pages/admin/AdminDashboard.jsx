@@ -1,6 +1,10 @@
 import { Link } from 'react-router-dom';
 import { Users, Shield, FileText, ArrowRight, TrendingUp, BarChart3 } from 'lucide-react';
 import Card from '../../components/common/Card';
+import { useState, useEffect } from 'react';
+import userService from '../../services/userService';
+import expenseService from '../../services/expenseService';
+import approvalRuleService from '../../services/approvalRuleService';
 
 const quickActions = [
   {
@@ -30,6 +34,31 @@ const quickActions = [
 ];
 
 export default function AdminDashboard() {
+  const [stats, setStats] = useState({ users: 0, pending: 0, rules: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const [usersRes, expensesRes, rulesRes] = await Promise.all([
+          userService.getAll(),
+          expenseService.getAll(),
+          approvalRuleService.getAll()
+        ]);
+        setStats({
+          users: (usersRes.data || []).length,
+          pending: (expensesRes.data || []).filter(e => e.status === 'WAITING_APPROVAL').length,
+          rules: (rulesRes.data || []).filter(r => r.isActive).length
+        });
+      } catch (err) {
+        console.error('Failed to load dashboard stats', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
   return (
     <div>
       <div className="mb-8">
@@ -40,9 +69,9 @@ export default function AdminDashboard() {
       {/* Quick Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
         {[
-          { label: 'Total Users', value: '—', icon: Users, color: 'text-primary-light' },
-          { label: 'Pending Approvals', value: '—', icon: TrendingUp, color: 'text-warning' },
-          { label: 'Active Rules', value: '—', icon: BarChart3, color: 'text-secondary' },
+          { label: 'Total Users', value: loading ? '...' : stats.users, icon: Users, color: 'text-primary-light' },
+          { label: 'Pending Approvals', value: loading ? '...' : stats.pending, icon: TrendingUp, color: 'text-warning' },
+          { label: 'Active Rules', value: loading ? '...' : stats.rules, icon: BarChart3, color: 'text-secondary' },
         ].map((stat) => (
           <Card key={stat.label} className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-surface-700 flex items-center justify-center">

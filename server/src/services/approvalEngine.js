@@ -1,7 +1,6 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../utils/prisma');
 const { sendApprovalRequestEmail, sendApprovalNotificationEmail } = require('./emailService');
-
-const prisma = new PrismaClient();
+const { createNotification } = require('./notificationService');
 
 /**
  * Trigger the approval workflow for a submitted expense
@@ -61,31 +60,31 @@ const triggerApprovalWorkflow = async (expenseId) => {
   // 2. Build the initial sequence of approvers
   let sequenceOrder = 1;
   const logsToCreate = [];
+  const logSet = new Set();
+  
+  const addLog = (approverId, order) => {
+    if (!logSet.has(approverId)) {
+      logsToCreate.push({ expenseId, approverId, sequenceOrder: order, action: 'PENDING' });
+      logSet.add(approverId);
+    }
+  };
 
   // If manager must approve first
   if (activeRule.isManagerApprover && expense.user.manager) {
-    logsToCreate.push({
-      expenseId,
-      approverId: expense.user.manager.id,
-      sequenceOrder,
-      action: 'PENDING'
-    });
+    addLog(expense.user.manager.id, sequenceOrder);
     sequenceOrder++;
-
-    // If sequential, we stop here and wait for manager.
-    // Otherwise, we calculate remaining logs but keep them pending.
   }
 
   // Other rule-based approvers
   if (activeRule.approvers && activeRule.approvers.length > 0) {
     for (const approver of activeRule.approvers) {
-      logsToCreate.push({
-        expenseId,
-        approverId: approver.userId,
-        sequenceOrder: activeRule.isSequential ? sequenceOrder++ : sequenceOrder, // keep same group order if parallel
-        action: 'PENDING'
-      });
+      addLog(approver.userId, activeRule.isSequential ? sequenceOrder++ : sequenceOrder);
     }
+  }
+
+  // If manager is NOT first, they act as a regular concurrent/appended approver
+  if (!activeRule.isManagerApprover && expense.user.manager) {
+    addLog(expense.user.manager.id, activeRule.isSequential ? sequenceOrder++ : sequenceOrder);
   }
 
   // 3. Create the logs 
@@ -101,6 +100,22 @@ const triggerApprovalWorkflow = async (expenseId) => {
     for (const log of firstApprovers) {
       const approverDb = await prisma.user.findUnique({ where: { id: log.approverId }});
       await sendApprovalRequestEmail(approverDb.email, approverDb.name, expense);
+      await createNotification(
+        approverDb.id, 
+        'New Expense Approval Request', 
+        `${expense.user.name} has submitted an expense for ${expense.amount} ${expense.currency} that requires your approval.`
+      );
+    }
+    // Notify the CFO globally
+    const companyCfo = await prisma.user.findFirst({
+      where: { companyId: expense.companyId, role: 'CFO' }
+    });
+    if (companyCfo) {
+      await createNotification(
+        companyCfo.id,
+        'Global Approval Needed',
+        `${expense.user.name} submitted an expense for ${expense.amount} ${expense.currency}. As CFO, you can override and approve it directly.`
+      );
     }
   } else {
     // Edge case if rule is empty and no manager
@@ -119,19 +134,8 @@ const triggerApprovalWorkflow = async (expenseId) => {
  * @param {string} comments 
  */
 const processApprovalDecision = async (expenseId, approverId, action, comments) => {
-  // Update the log
-  const logResponse = await prisma.approvalLog.update({
-    where: {
-      expenseId_approverId: {
-        expenseId,
-        approverId
-      }
-    },
-    data: {
-      action,
-      comments,
-      actionAt: new Date()
-    }
+  const approverDb = await prisma.user.findUnique({
+    where: { id: approverId }
   });
 
   const expense = await prisma.expense.findUnique({
@@ -150,6 +154,67 @@ const processApprovalDecision = async (expenseId, approverId, action, comments) 
     }
   });
 
+  // CFO Global Override Check
+  if (approverDb.role === 'CFO') {
+    const finalStatus = action === 'REJECTED' ? 'REJECTED' : 'APPROVED';
+    
+    // Unconditionally apply decision
+    await prisma.expense.update({
+      where: { id: expenseId },
+      data: { status: finalStatus }
+    });
+
+    // We use upsert to record the CFO's decision without collision
+    await prisma.approvalLog.upsert({
+      where: {
+        expenseId_approverId: { expenseId, approverId }
+      },
+      create: {
+        expenseId,
+        approverId,
+        action,
+        comments,
+        sequenceOrder: 999, // Represents CFO override
+        actionAt: new Date()
+      },
+      update: {
+        action,
+        comments,
+        actionAt: new Date()
+      }
+    });
+
+    // Notify User
+    await sendApprovalNotificationEmail(
+      expense.user.email,
+      expense,
+      finalStatus,
+      'the CFO (Executive Override)'
+    );
+    await createNotification(
+      expense.userId,
+      `Expense ${finalStatus}`,
+      `Your expense for ${expense.amount} ${expense.currency} was ${finalStatus} by the CFO.`
+    );
+    return { status: finalStatus };
+  }
+
+  // Update Standard Log
+  const logResponse = await prisma.approvalLog.update({
+    where: {
+      expenseId_approverId: {
+        expenseId,
+        approverId
+      }
+    },
+    data: {
+      action,
+      comments,
+      actionAt: new Date()
+    }
+  });
+
+
   const rule = expense.user.approvalRules[0];
   const logs = expense.approvalLogs;
 
@@ -163,6 +228,11 @@ const processApprovalDecision = async (expenseId, approverId, action, comments) 
     
     // Notify user
     await sendApprovalNotificationEmail(expense.user.email, expense, 'REJECTED', 'an approver');
+    await createNotification(
+      expense.userId,
+      'Expense Rejected',
+      `Your expense for ${expense.amount} ${expense.currency} was REJECTED by an approver.`
+    );
     return { status: 'REJECTED' };
   }
 
@@ -176,6 +246,11 @@ const processApprovalDecision = async (expenseId, approverId, action, comments) 
         for (const nextLog of nextLogs) {
            const approverDb = await prisma.user.findUnique({ where: { id: nextLog.approverId }});
            await sendApprovalRequestEmail(approverDb.email, approverDb.name, expense);
+           await createNotification(
+             approverDb.id,
+             'New Expense Approval Request',
+             `${expense.user.name} has submitted an expense for ${expense.amount} ${expense.currency} that requires your approval.`
+           );
         }
         return { status: 'WAITING_APPROVAL' };
       }
@@ -185,7 +260,6 @@ const processApprovalDecision = async (expenseId, approverId, action, comments) 
   const approvedCount = logs.filter(l => l.action === 'APPROVED').length;
   let totalRequired = logs.length;
   
-  // Calculate specific percentage threshold if parallel and defined
   let threshold = 100;
   if (rule && rule.minApprovalPercentage) {
     threshold = parseFloat(rule.minApprovalPercentage);
@@ -214,7 +288,17 @@ const processApprovalDecision = async (expenseId, approverId, action, comments) 
     });
     
     // Notify user
-    await sendApprovalNotificationEmail(expense.user.email, expense, 'APPROVED', 'all required approvers');
+    await sendApprovalNotificationEmail(
+      expense.user.email, 
+      expense, 
+      'APPROVED', 
+      'all required approvers'
+    );
+    await createNotification(
+      expense.userId,
+      'Expense Approved!',
+      `Your expense for ${expense.amount} ${expense.currency} was FULLY APPROVED by all required approvers.`
+    );
     return { status: 'APPROVED' };
   }
 

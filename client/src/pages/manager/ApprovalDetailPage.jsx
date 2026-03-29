@@ -57,7 +57,15 @@ export default function ApprovalDetailPage() {
 
   if (loading) return <PageLoader />;
 
-  const canAct = expense?.status === 'WAITING_APPROVAL' || expense?.status === 'SUBMITTED';
+  let canAct = false;
+  if (user?.role === 'CFO') {
+    canAct = true;
+  } else if (expense?.status === 'WAITING_APPROVAL' || expense?.status === 'SUBMITTED') {
+    const myLog = logs.find(l => l.approver?.id === user?.id);
+    if (myLog && myLog.action === 'PENDING') {
+      canAct = true;
+    }
+  }
 
   return (
     <div>

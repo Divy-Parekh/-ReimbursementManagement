@@ -1,11 +1,9 @@
 const bcrypt = require('bcryptjs');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../utils/prisma');
 const { generateToken } = require('../utils/tokenUtils');
 const { generateRandomPassword } = require('../utils/passwordGenerator');
 const { sendSuccess, sendError } = require('../utils/responseHelper');
 const { sendForgotPasswordEmail } = require('../services/emailService');
-
-const prisma = new PrismaClient();
 
 /**
  * Handle Admin Signup
