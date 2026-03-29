@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ========================
+// ENUMS
+// ========================
+
+enum Role {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  WAITING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalAction {
+  APPROVED
+  REJECTED
+  PENDING
+}
+
+// ========================
+// MODELS
+// ========================
+
+model Company {
+  id            String    @id @default(uuid())
+  name          String
+  country       String
+  baseCurrency  String    // e.g., "INR", "USD", "EUR"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  users         User[]
+  expenses      Expense[]
+  approvalRules ApprovalRule[]
+}
+
+model User {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  email       String   @unique
+  password    String   // bcrypt hashed
+  role        Role     @default(EMPLOYEE)
+  managerId   String?  // self-referencing FK
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company  @relation(fields: [companyId], references: [id])
+  manager     User?    @relation("ManagerRelation", fields: [managerId], references: [id])
+  subordinates User[]  @relation("ManagerRelation")
+
+  expenses        Expense[]
+  approvalLogs    ApprovalLog[]    @relation("ApproverLogs")
+  approvalRules   ApprovalRule[]   @relation("RuleForUser")
+  ruleApprovers   ApprovalRuleApprover[]
+
+  @@index([companyId])
+  @@index([managerId])
+  @@index([email])
+}
+
+model Expense {
+  id                String        @id @default(uuid())
+  userId            String
+  companyId         String
+  description       String
+  category          String        // "Food", "Travel", "Office", "Accommodation", "Miscellaneous"
+  amount            Decimal       @db.Decimal(12, 2)
+  currency          String        // Currency code of submitted amount (e.g., "USD")
+  convertedAmount   Decimal?      @db.Decimal(12, 2)  // Amount in company's base currency
+  expenseDate       DateTime
+  paidBy            String        // Who paid for this expense
+  remarks           String?
+  status            ExpenseStatus @default(DRAFT)
+
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user              User          @relation(fields: [userId], references: [id])
+  company           Company       @relation(fields: [companyId], references: [id])
+  attachments       ExpenseAttachment[]
+  approvalLogs      ApprovalLog[]
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([status])
+}
+
+model ExpenseAttachment {
+  id          String   @id @default(uuid())
+  expenseId   String
+  fileUrl     String
+  fileName    String
+  mimeType    String
+
+  createdAt   DateTime @default(now())
+
+  expense     Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@index([expenseId])
+}
+
+model ApprovalRule {
+  id                     String   @id @default(uuid())
+  companyId              String
+  userId                 String   // The user this rule applies to
+  description            String   // e.g., "Approval rule for miscellaneous expenses"
+  managerId              String?  // Manager for this approval rule (dynamic dropdown)
+  isManagerApprover      Boolean  @default(false)  // Route to manager first?
+  isSequential           Boolean  @default(false)  // Sequential or parallel approval?
+  minApprovalPercentage  Decimal  @default(100) @db.Decimal(5, 2)  // e.g., 60.00%
+
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  company     Company                @relation(fields: [companyId], references: [id])
+  user        User                   @relation("RuleForUser", fields: [userId], references: [id])
+  approvers   ApprovalRuleApprover[]
+
+  @@index([companyId])
+  @@index([userId])
+}
+
+model ApprovalRuleApprover {
+  id              String   @id @default(uuid())
+  approvalRuleId  String
+  userId          String   // The approver user
+  sequenceOrder   Int      // 1, 2, 3... (order in sequence)
+  isRequired      Boolean  @default(false)  // Mandatory approver?
+
+  createdAt       DateTime @default(now())
+
+  approvalRule    ApprovalRule @relation(fields: [approvalRuleId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id])
+
+  @@index([approvalRuleId])
+  @@unique([approvalRuleId, sequenceOrder])
+}
+
+model ApprovalLog {
+  id            String         @id @default(uuid())
+  expenseId     String
+  approverId    String
+  action        ApprovalAction @default(PENDING)
+  comments      String?
+  sequenceOrder Int            // Which step in the approval chain
+
+  actionAt      DateTime?      // null if PENDING
+  createdAt     DateTime       @default(now())
+
+  expense       Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  approver      User     @relation("ApproverLogs", fields: [approverId], references: [id])
+
+  @@index([expenseId])
+  @@index([approverId])
+  @@unique([expenseId, approverId])
+}
